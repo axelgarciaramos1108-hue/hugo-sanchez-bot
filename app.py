@@ -60,6 +60,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text
+    telegram_id = update.effective_user.id
+    user_id = crear_usuario_si_no_existe(telegram_id)
 
     if texto == "📚 Escuela":
         keyboard = [
@@ -76,9 +78,6 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return AGREGAR_MATERIA
 
     if texto == "📖 Ver materias":
-        telegram_id = update.effective_user.id
-        user_id = crear_usuario_si_no_existe(telegram_id)
-
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
@@ -108,9 +107,25 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if texto == "🔙 Volver":
         return await start(update, context)
 
+    # 🔥 NUEVO BLOQUE: verificar si es una materia existente
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id FROM materias WHERE user_id = %s AND nombre = %s",
+        (user_id, texto),
+    )
+    materia = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if materia:
+        await update.message.reply_text(
+            f"Entraste a la materia: {texto}"
+        )
+        return MENU
+
     await update.message.reply_text("Opción no válida.")
     return MENU
-
 
 async def guardar_materia(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nombre = update.message.text
