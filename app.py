@@ -72,27 +72,36 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Escribe el nombre de la materia:")
         return AGREGAR_MATERIA
 
-    elif texto == "📖 Ver materias":
-        telegram_id = update.effective_user.id
-        user_id = crear_usuario_si_no_existe(telegram_id)
+elif texto == "📖 Ver materias":
+    telegram_id = update.effective_user.id
+    user_id = crear_usuario_si_no_existe(telegram_id)
 
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT nombre FROM materias WHERE user_id = %s ORDER BY nombre ASC",
-            (user_id,),
-        )
-        materias = cur.fetchall()
-        cur.close()
-        conn.close()
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT nombre FROM materias WHERE user_id = %s ORDER BY nombre ASC",
+        (user_id,),
+    )
+    materias = cur.fetchall()
+    cur.close()
+    conn.close()
 
-        if not materias:
-            await update.message.reply_text("No tienes materias registradas.")
-        else:
-            lista = "\n".join([f"- {m[0]}" for m in materias])
-            await update.message.reply_text(f"Tus materias:\n{lista}")
-
+    if not materias:
+        await update.message.reply_text("No tienes materias registradas.")
         return MENU
+
+    # Crear botones dinámicos
+    keyboard = [[m[0]] for m in materias]
+    keyboard.append(["🔙 Volver"])
+
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+    await update.message.reply_text(
+        "Selecciona una materia:",
+        reply_markup=reply_markup,
+    )
+
+    return MENU
 
     elif texto == "🔙 Volver":
         return await start(update, context)
