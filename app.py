@@ -16,13 +16,19 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # Estados
 MENU, AGREGAR_MATERIA = range(2)
 
-# Conexión DB
+
+# ---------------------------
+# CONEXIÓN A BASE DE DATOS
+# ---------------------------
+
 def get_connection():
     return psycopg2.connect(DATABASE_URL)
+
 
 def crear_usuario_si_no_existe(telegram_id):
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("SELECT id FROM users WHERE telegram_id = %s", (telegram_id,))
     user = cur.fetchone()
 
@@ -40,20 +46,29 @@ def crear_usuario_si_no_existe(telegram_id):
     conn.close()
     return user_id
 
+
+# ---------------------------
+# START
+# ---------------------------
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
     crear_usuario_si_no_existe(telegram_id)
 
-    keyboard = [
-        ["📚 Escuela"],
-    ]
+    keyboard = [["📚 Escuela"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
     await update.message.reply_text(
         "Bienvenido. Elige una opción:",
         reply_markup=reply_markup,
     )
+
     return MENU
+
+
+# ---------------------------
+# MENÚ PRINCIPAL
+# ---------------------------
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text
@@ -65,43 +80,50 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ["🔙 Volver"],
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text("Menú Escuela:", reply_markup=reply_markup)
+
+        await update.message.reply_text(
+            "Menú Escuela:",
+            reply_markup=reply_markup,
+        )
         return MENU
 
     elif texto == "➕ Agregar materia":
         await update.message.reply_text("Escribe el nombre de la materia:")
         return AGREGAR_MATERIA
 
-elif texto == "📖 Ver materias":
-    telegram_id = update.effective_user.id
-    user_id = crear_usuario_si_no_existe(telegram_id)
+    elif texto == "📖 Ver materias":
+        telegram_id = update.effective_user.id
+        user_id = crear_usuario_si_no_existe(telegram_id)
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT nombre FROM materias WHERE user_id = %s ORDER BY nombre ASC",
-        (user_id,),
-    )
-    materias = cur.fetchall()
-    cur.close()
-    conn.close()
+        conn = get_connection()
+        cur = conn.cursor()
 
-    if not materias:
-        await update.message.reply_text("No tienes materias registradas.")
+        cur.execute(
+            "SELECT nombre FROM materias WHERE user_id = %s ORDER BY nombre ASC",
+            (user_id,),
+        )
+
+        materias = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        if not materias:
+            await update.message.reply_text("No tienes materias registradas.")
+            return MENU
+
+        # Crear botones dinámicos
+        keyboard = [[m[0]] for m in materias]
+        keyboard.append(["🔙 Volver"])
+
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+        await update.message.reply_text(
+            "Selecciona una materia:",
+            reply_markup=reply_markup,
+        )
+
         return MENU
-
-    # Crear botones dinámicos
-    keyboard = [[m[0]] for m in materias]
-    keyboard.append(["🔙 Volver"])
-
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-    await update.message.reply_text(
-        "Selecciona una materia:",
-        reply_markup=reply_markup,
-    )
-
-    return MENU
 
     elif texto == "🔙 Volver":
         return await start(update, context)
@@ -110,6 +132,11 @@ elif texto == "📖 Ver materias":
         await update.message.reply_text("Opción no válida.")
         return MENU
 
+
+# ---------------------------
+# GUARDAR MATERIA
+# ---------------------------
+
 async def guardar_materia(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nombre = update.message.text
     telegram_id = update.effective_user.id
@@ -117,16 +144,24 @@ async def guardar_materia(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute(
         "INSERT INTO materias (user_id, nombre) VALUES (%s, %s)",
         (user_id, nombre),
     )
+
     conn.commit()
     cur.close()
     conn.close()
 
     await update.message.reply_text(f"Materia '{nombre}' agregada correctamente.")
+
     return await start(update, context)
+
+
+# ---------------------------
+# MAIN
+# ---------------------------
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -146,6 +181,7 @@ def main():
 
     print("Bot iniciado...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
